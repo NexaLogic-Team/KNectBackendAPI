@@ -14,6 +14,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
+using Npgsql;
 
 namespace Knect.Infrastructure.Authentication;
 
@@ -163,9 +164,6 @@ public sealed class AuthenticationService : IAuthenticationService, IGoogleAuthe
             throw new AuthException("Account is not active.", 401);
         }
 
-        var replacementToken = CreateSecureToken();
-        var replacementHash = HashToken(replacementToken);
-
         var activeCurrentToken = await _dbContext.RefreshTokens
             .Where(x => x.UserId == currentUser.Id && x.TokenHash == tokenHash && !x.IsRevoked && !x.IsUsed && x.ExpiresAt > DateTime.UtcNow)
             .SingleOrDefaultAsync(cancellationToken);
@@ -175,21 +173,14 @@ public sealed class AuthenticationService : IAuthenticationService, IGoogleAuthe
             throw new AuthException("Refresh token is invalid or expired.", 401);
         }
 
+        var replacementToken = await CreateUniqueRefreshTokenAsync(cancellationToken);
+        var replacementHash = HashToken(replacementToken);
+
         activeCurrentToken.IsUsed = true;
         activeCurrentToken.RevokedAt ??= DateTime.UtcNow;
         activeCurrentToken.Reason = "Token rotated";
         activeCurrentToken.ReplacedByTokenHash = replacementHash;
 
-        var replacement = new RefreshToken
-        {
-            UserId = currentUser.Id,
-            TokenHash = replacementHash,
-            ExpiresAt = DateTime.UtcNow.AddDays(_jwtOptions.RefreshTokenLifetimeDays),
-            CreatedAt = DateTime.UtcNow,
-            JwtId = Guid.NewGuid().ToString("N")
-        };
-
-        _dbContext.RefreshTokens.Add(replacement);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         return await CreateAuthResultAsync(currentUser, cancellationToken, replacementToken);
@@ -472,6 +463,22 @@ public sealed class AuthenticationService : IAuthenticationService, IGoogleAuthe
             refreshToken,
             DateTime.UtcNow.AddMinutes(_jwtOptions.AccessTokenLifetimeMinutes),
             userRoles);
+    }
+
+    private async Task<string> CreateUniqueRefreshTokenAsync(CancellationToken cancellationToken)
+    {
+        for (var attempt = 0; attempt < 10; attempt++)
+        {
+            var candidate = CreateSecureToken();
+            var candidateHash = HashToken(candidate);
+            var exists = await _dbContext.RefreshTokens.AnyAsync(x => x.TokenHash == candidateHash, cancellationToken);
+            if (!exists)
+            {
+                return candidate;
+            }
+        }
+
+        throw new AuthException("Could not generate a unique refresh token. Please try again.", 500);
     }
 
     private async Task<string?> CreateOrRotateAdminSessionAsync(User user, CancellationToken cancellationToken, ICollection<string>? roles = null)

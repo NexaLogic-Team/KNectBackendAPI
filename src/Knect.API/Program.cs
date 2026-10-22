@@ -1,4 +1,5 @@
 using System.Text;
+using Knect.API;
 using Knect.API.Authorization;
 using Knect.Application.Admin.Interfaces;
 using Knect.Application.Applications.Interfaces;
@@ -19,12 +20,17 @@ using Knect.Infrastructure.Notifications;
 using Knect.Infrastructure.Persistence;
 using Knect.Infrastructure.Profiles;
 using Knect.Infrastructure.Subscriptions;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.OpenApi;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using Scalar.AspNetCore; // <-- Add this import
+using Scalar.AspNetCore;
+using AppAuth = Knect.Application.Authentication.Interfaces;
+using InfrastructureAuth = Knect.Infrastructure.Authentication;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -36,7 +42,10 @@ builder.Services.AddOptions<SubscriptionLifecycleOptions>().Bind(builder.Configu
 builder.Services.AddOptions<DevelopmentAdminSeedOptions>().Bind(builder.Configuration.GetSection(DevelopmentAdminSeedOptions.SectionName));
 
 builder.Services.AddControllers();
-builder.Services.AddOpenApi();
+builder.Services.AddOpenApi(options =>
+{
+    options.AddDocumentTransformer<BearerSecuritySchemeTransformer>();
+});
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 if (string.IsNullOrWhiteSpace(connectionString))
@@ -61,8 +70,8 @@ if (string.IsNullOrWhiteSpace(jwtKey) || jwtKey.Contains("replace", StringCompar
 var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "https://api.example.com";
 var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "knect-api";
 
-builder.Services.AddScoped<IAuthenticationService, AuthenticationService>();
-builder.Services.AddScoped<IGoogleAuthenticationService, AuthenticationService>();
+builder.Services.AddScoped<AppAuth.IAuthenticationService, InfrastructureAuth.AuthenticationService>();
+builder.Services.AddScoped<AppAuth.IGoogleAuthenticationService, InfrastructureAuth.AuthenticationService>();
 builder.Services.AddScoped<IEmailSender, EmailSender>();
 builder.Services.AddScoped<IUserProfileService, UserProfileService>();
 builder.Services.AddScoped<IEmployerProfileService, EmployerProfileService>();
