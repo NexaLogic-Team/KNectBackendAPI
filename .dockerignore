@@ -1,0 +1,15 @@
+.git
+.gitignore
+.idea
+.vscode
+bin
+obj
+**/bin
+**/obj
+node_modules
+*.user
+*.suo
+*.db
+*.md
+Dockerfile.local
+docker-compose.override.yml

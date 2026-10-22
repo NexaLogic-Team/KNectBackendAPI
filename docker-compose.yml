@@ -1,0 +1,51 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: knect-api
+    restart: unless-stopped
+    networks:
+      - knect-net
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
+      ConnectionStrings__DefaultConnection: "${ConnectionStrings__DefaultConnection}"
+      Jwt__Issuer: "${Jwt__Issuer}"
+      Jwt__Audience: "${Jwt__Audience}"
+      Jwt__Key: "${Jwt__Key}"
+      Google__ClientId: "${Google__ClientId}"
+      Google__ClientSecret: "${Google__ClientSecret}"
+      Email__Provider: "${Email__Provider}"
+      Email__Host: "${Email__Host}"
+      Email__Port: "${Email__Port}"
+      Email__EnableSsl: "${Email__EnableSsl}"
+      Email__From: "${Email__From}"
+      Email__Username: "${Email__Username}"
+      Email__Password: "${Email__Password}"
+      S3__BucketName: "${S3__BucketName}"
+      S3__Region: "${S3__Region}"
+      S3__AccessKey: "${S3__AccessKey}"
+      S3__SecretKey: "${S3__SecretKey}"
+      S3__ServiceUrl: "${S3__ServiceUrl}"
+      S3__ForcePathStyle: "${S3__ForcePathStyle}"
+      BackgroundJobs__SubscriptionLifecycle__Enabled: "${BackgroundJobs__SubscriptionLifecycle__Enabled:-true}"
+      BackgroundJobs__SubscriptionLifecycle__CheckIntervalMinutes: "${BackgroundJobs__SubscriptionLifecycle__CheckIntervalMinutes:-5}"
+      BackgroundJobs__SubscriptionLifecycle__BatchSize: "${BackgroundJobs__SubscriptionLifecycle__BatchSize:-200}"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+
+networks:
+  knect-net:
+    driver: bridge
